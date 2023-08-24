@@ -1,0 +1,33 @@
+version: '3.4'
+
+services:
+  adapter_translation_experiment:
+    image: adapter-translation-experiment:latest
+    build:
+      context: ../
+      dockerfile: build/Dockerfile
+    stdin_open: true
+    tty: true
+    environment:
+      NVIDIA_VISIBLE_DEVICES: 0
+      CUDA_VISIBLE_DEVICES: 0
+    env_file: environment.env
+    # ports:
+    #   - 3000:3000
+    #   - 8888:8888
+    volumes:
+      - ../src:/src
+      - ../models:/models
+      - ../data:/data
+      # - ../tests:/tests
+    ulimits:
+      memlock: -1 # set upper limit for how much memory is locked for the container (-1 means lock as much as the container uses)
+    shm_size: 32gb # set upper limit for how much shared memory container can use
+    ipc: "host"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
