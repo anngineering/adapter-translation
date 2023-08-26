@@ -17,7 +17,7 @@ services:
     #   - 8888:8888
     volumes:
       - ../src:/src
-      - ../models:/models
+      - /home/dhuser/model_bank:/models
       - ../data:/data
       # - ../tests:/tests
     ulimits:

@@ -1,6 +1,6 @@
 import torch
 
-class YourDataSetClass(Dataset):
+class AdapterTranslatorDataset(Dataset):
     """
     Creating a custom dataset for reading the dataset and
     loading it into the dataloader to pass it to the
@@ -9,7 +9,7 @@ class YourDataSetClass(Dataset):
     """
 
     def __init__(
-        self, eng_dataset, other_dataset, tokenizer, source_len, target_len,
+        self, eng_dataset, other_dataset, tokenizer, max_len,
     ):
         """
         Initializes a Dataset class
@@ -25,8 +25,8 @@ class YourDataSetClass(Dataset):
         self.tokenizer = tokenizer
         self.eng_dataset = eng_dataset
         self.other_dataset = other_dataset
-        self.source_len = len(eng_dataset)
-        self.target_len = len(other_dataset)
+        self.source_len = max_len
+        self.target_len = max_len
         self.target_text = self.other_dataset['sentence']
         self.source_text = self.eng_dataset['sentence']
 

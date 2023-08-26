@@ -4,15 +4,22 @@ import os
 import numpy as np
 import pandas as pd
 import torch
+from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
+from torchtext import bleu_score
 import os
 
 from peft import get_peft_model, LoraConfig, TaskType
 
 from datasets import load_dataset 
 
-def train(epoch, tokenizer, model, device, loader, optimizer):
+from tqdm import tqdm
+import argparse
+
+from Dataloader import AdapterTranslatorDataset
+
+def train(epoch, tokenizer, model, device, loader, optimizer, criterion):
 
     """
     Function to be called for training with the parameters passed from main function
@@ -35,7 +42,8 @@ def train(epoch, tokenizer, model, device, loader, optimizer):
             attention_mask=mask,
             labels=lm_labels,
         )
-        loss = outputs[0]
+
+        loss = criterion(outputs.logits, y)
 
         # if _ % 10 == 0:
         #     training_logger.add_row(str(epoch), str(_), str(loss))
@@ -45,7 +53,37 @@ def train(epoch, tokenizer, model, device, loader, optimizer):
         loss.backward()
         optimizer.step()
 
-def validate(epoch, tokenizer, model, device, loader):
+def validate(tokenizer, model, device, loader, criterion):
+
+    """
+    Function to evaluate model for predictions
+
+    """
+    model.eval()
+    losses = []
+    with torch.no_grad():
+        for _, data in enumerate(loader, 0):
+            y = data["target_ids"].to(device, dtype=torch.long)
+        y_ids = y[:, :-1].contiguous()
+        lm_labels = y[:, 1:].clone().detach()
+        lm_labels[y[:, 1:] == tokenizer.pad_token_id] = -100
+        ids = data["source_ids"].to(device, dtype=torch.long)
+        mask = data["source_mask"].to(device, dtype=torch.long)
+
+        print(ids, mask, lm_labels)
+
+        outputs = model(
+            input_ids=ids,
+            attention_mask=mask,
+            labels=lm_labels,
+        )
+
+        loss = criterion(outputs.logits, y)
+        losses.append(loss)
+
+    return np.mean(losses)
+
+def test(tokenizer, model, device, loader):
 
     """
     Function to evaluate model for predictions
@@ -123,14 +161,14 @@ def T5Trainer(
     # console.print(f"TEST Dataset: {val_dataset.shape}\n")
 
     # Creating the Training and Validation dataset for further creation of Dataloader
-    training_set = YourDataSetClass(
+    training_set = AdapterTranslatorDataset(
         eng_dataset['devtest'],
         por_dataset['devtest'],
         tokenizer,
         model_params["MAX_SOURCE_TEXT_LENGTH"],
         model_params["MAX_TARGET_TEXT_LENGTH"],
     )
-    val_set = YourDataSetClass(
+    val_set = AdapterTranslatorDataset(
         eng_dataset['dev'],
         por_dataset['dev'],
         tokenizer,
@@ -191,6 +229,17 @@ def T5Trainer(
     # console.print(f"""[Logs] Logs saved @ {os.path.join(output_dir,'logs.txt')}\n""")    
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-device', type = str, default = 'cuda')
+    parser.add_argument('-batch_size', type = int, default= 8)
+    parser.add_argument('-lr', type = float, default = 1e-3)
+    parser.add_argument('-max_eps', type = int, default= 5)
+    parser.add_argument('-dataset', type=str, default='../data/nus_dataset_triples.csv')
+    parser.add_argument('-results', type=str, default='../data/triples_results_cameo.csv')
+    parser.add_argument('-lang', type=str, help="pt, gl, ba", default='pt')
+    parser.add_argument('-save_model_as', type=str, default='../models/triples_best_cameo.pt')
+    parser.add_argument('-t5_path', type=str, default=None)
+    args = parser.parse_args()
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf",
                                           use_auth_token=True,)
     tokenizer.pad_token = tokenizer.eos_token

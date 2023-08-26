@@ -19,18 +19,18 @@ RUN apt-get update \
     && apt-get install python3-dev -y \
     && apt-get install gcc -y \
     && apt-get install git -y \
-    && apt-get -y install build-essential git apt-utils gcc libpq-dev libsndfile1 ffmpeg sox wget python3-pip vim \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/* && apt-get -y autoremove \
+    && rm -rf /var/cache/apt/archives/
 
-RUN apt install -y git
+ADD build /build
+WORKDIR /build
 
-RUN pip install -U pip
+RUN make
 
-ADD build/requirements.txt .
-RUN pip uninstall -y -r requirements.txt --no-cache-dir
-RUN pip install -r requirements.txt --no-cache-dir
 RUN pip install git+https://github.com/huggingface/transformers
 RUN python -m spacy download en_core_web_lg
+
+ENV DISPLAY=:99
 
 ADD /src /src
 
