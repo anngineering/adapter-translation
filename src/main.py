@@ -6,8 +6,8 @@ import pandas as pd
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
-from torchtext import bleu_score
+from torch.utils.data import DataLoader
+from torchtext.data.metrics import bleu_score
 import os
 
 from peft import get_peft_model, LoraConfig, TaskType
@@ -16,6 +16,8 @@ from datasets import load_dataset
 
 from tqdm import tqdm
 import argparse
+
+import os
 
 from Dataloader import AdapterTranslatorDataset
 
@@ -35,7 +37,7 @@ def train(epoch, tokenizer, model, device, loader, optimizer, criterion):
         ids = data["source_ids"].to(device, dtype=torch.long)
         mask = data["source_mask"].to(device, dtype=torch.long)
 
-        print(ids, mask, lm_labels)
+        # print(ids, mask, lm_labels)
 
         outputs = model(
             input_ids=ids,
@@ -70,7 +72,7 @@ def validate(tokenizer, model, device, loader, criterion):
         ids = data["source_ids"].to(device, dtype=torch.long)
         mask = data["source_mask"].to(device, dtype=torch.long)
 
-        print(ids, mask, lm_labels)
+        # print(ids, mask, lm_labels)
 
         outputs = model(
             input_ids=ids,
@@ -92,6 +94,7 @@ def test(tokenizer, model, device, loader):
     model.eval()
     predictions = []
     actuals = []
+    bleu_scores = []
     with torch.no_grad():
         for _, data in enumerate(loader, 0):
             y = data['target_ids'].to(device, dtype = torch.long)
@@ -115,136 +118,36 @@ def test(tokenizer, model, device, loader):
 
             predictions.extend(preds)
             actuals.extend(target)
-    return predictions, actuals
+            bleu_scores.append(bleu_score(preds,target))
 
-def T5Trainer(
-    model, tokenizer, model_params, output_dir="./outputs/"
-):
-
-    """
-    T5 trainer
-
-    """
-
-    # Set random seeds and deterministic pytorch for reproducibility
-    torch.manual_seed(model_params["SEED"])  # pytorch random seed
-    np.random.seed(model_params["SEED"])  # numpy random seed
-    torch.backends.cudnn.deterministic = True
-
-    # logging
-    # console.log(f"""[Model]: Loading {model_params["MODEL"]}...\n""")
-
-    # tokenzier for encoding the text
-    # tokenizer = T5Tokenizer.from_pretrained(model_params["MODEL"])
-
-    # Defining the model. We are using t5-base model and added a Language model layer on top for generation of Summary.
-    # Further this model is sent to device (GPU/TPU) for using the hardware.
-    # model = T5ForConditionalGeneration.from_pretrained(model_params["MODEL"])
-    model = model.to('cuda')
-
-    # logging
-    # console.log(f"[Data]: Reading data...\n")
-
-    # Importing the raw dataset
-    # dataframe = dataframe[[source_text, target_text]]
-    # display_df(dataframe.head(2))
-
-    # Creation of Dataset and Dataloader
-    # Defining the train size. So 80% of the data will be used for training and the rest for validation.
-    # train_size = 0.8
-    # train_dataset = dataframe.sample(frac=train_size, random_state=model_params["SEED"])
-    # val_dataset = dataframe.drop(train_dataset.index).reset_index(drop=True)
-    # train_dataset = train_dataset.reset_index(drop=True)
-
-    # console.print(f"FULL Dataset: {dataframe.shape}")
-    # console.print(f"TRAIN Dataset: {train_dataset.shape}")
-    # console.print(f"TEST Dataset: {val_dataset.shape}\n")
-
-    # Creating the Training and Validation dataset for further creation of Dataloader
-    training_set = AdapterTranslatorDataset(
-        eng_dataset['devtest'],
-        por_dataset['devtest'],
-        tokenizer,
-        model_params["MAX_SOURCE_TEXT_LENGTH"],
-        model_params["MAX_TARGET_TEXT_LENGTH"],
-    )
-    val_set = AdapterTranslatorDataset(
-        eng_dataset['dev'],
-        por_dataset['dev'],
-        tokenizer,
-        model_params["MAX_SOURCE_TEXT_LENGTH"],
-        model_params["MAX_TARGET_TEXT_LENGTH"],
-    )
-
-    # Defining the parameters for creation of dataloaders
-    train_params = {
-        "batch_size": model_params["TRAIN_BATCH_SIZE"],
-        "shuffle": True,
-        "num_workers": 0,
-    }
-
-    val_params = {
-        "batch_size": model_params["VALID_BATCH_SIZE"],
-        "shuffle": False,
-        "num_workers": 0,
-    }
-
-    # Creation of Dataloaders for testing and validation. This will be used down for training and validation stage for the model.
-    training_loader = DataLoader(training_set, **train_params)
-    val_loader = DataLoader(val_set, **val_params)
-
-    # Defining the optimizer that will be used to tune the weights of the network in the training session.
-    optimizer = torch.optim.Adam(
-        params=model.parameters(), lr=model_params["LEARNING_RATE"]
-    )
-
-    # Training loop
-    # console.log(f"[Initiating Fine Tuning]...\n")
-
-    for epoch in range(model_params["TRAIN_EPOCHS"]):
-        train(epoch, tokenizer, model, 'cuda', training_loader, optimizer)
-
-    # console.log(f"[Saving Model]...\n")
-    # Saving the model after training
-    path = os.path.join(output_dir, "model_files")
-    model.save_pretrained(path)
-    tokenizer.save_pretrained(path)
-
-    # evaluating test dataset
-    # console.log(f"[Initiating Validation]...\n")
-    for epoch in range(model_params["VAL_EPOCHS"]):
-        predictions, actuals = validate(epoch, tokenizer, model, 'cuda', val_loader)
-        final_df = pd.DataFrame({"Generated Text": predictions, "Actual Text": actuals})
-        final_df.to_csv(os.path.join(output_dir, "predictions.csv"))
-
-    # console.save_text(os.path.join(output_dir, "logs.txt"))
-
-    # console.log(f"[Validation Completed.]\n")
-    # console.print(
-    #     f"""[Model] Model saved @ {os.path.join(output_dir, "model_files")}\n"""
-    # )
-    # console.print(
-    #     f"""[Validation] Generation on Validation data saved @ {os.path.join(output_dir,'predictions.csv')}\n"""
-    # )
-    # console.print(f"""[Logs] Logs saved @ {os.path.join(output_dir,'logs.txt')}\n""")    
+    ave_bleu = np.mean(bleu_scores)
+    return predictions, actuals, ave_bleu 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-device', type = str, default = 'cuda')
     parser.add_argument('-batch_size', type = int, default= 8)
     parser.add_argument('-lr', type = float, default = 1e-3)
+    parser.add_argument('-max_len', type = int, default = 128)
     parser.add_argument('-max_eps', type = int, default= 5)
     parser.add_argument('-dataset', type=str, default='../data/nus_dataset_triples.csv')
     parser.add_argument('-results', type=str, default='../data/triples_results_cameo.csv')
     parser.add_argument('-lang', type=str, help="pt, gl, ba", default='pt')
-    parser.add_argument('-save_model_as', type=str, default='../models/triples_best_cameo.pt')
     parser.add_argument('-t5_path', type=str, default=None)
     args = parser.parse_args()
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf",
+    parser.add_argument('-save_model_as', type=str, default=f'../models/adapter_translation_{args.lang}.pt')
+    args = parser.parse_args()
+
+    torch.manual_seed(42)  # pytorch random seed
+    np.random.seed(42)  # numpy random seed
+    torch.backends.cudnn.deterministic = True
+    
+    tokenizer = AutoTokenizer.from_pretrained(os.environ["TOKENIZER_13B_PATH"],
                                           use_auth_token=True,)
     tokenizer.pad_token = tokenizer.eos_token
 
-    model = LlamaForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf",
+    model = LlamaForCausalLM.from_pretrained(os.environ['LLAMA_MODEL_13B_PATH'],
+                                                use_safetensors=False,
                                                 device_map='auto',
                                                 torch_dtype=torch.float16,
                                                 use_auth_token=True,
@@ -258,29 +161,65 @@ if __name__ == "__main__":
 
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
+    model.to(args.device)
 
+    criterion = nn.CrossEntropyLoss(ignore_index=-100)
 
     por_dataset = load_dataset('facebook/flores', 'por_Latn')
     eng_dataset = load_dataset('facebook/flores', 'eng_Latn')
 
-    por_dataset.save_to_disk("data/por.hf")
-    eng_dataset.save_to_disk("data/eng.hf")
+    por_dataset.save_to_disk("../data/por.hf")
+    eng_dataset.save_to_disk("../data/eng.hf")
 
-    model_params = {
-        "MODEL": "t5-base",  # model_type: t5-base/t5-large
-        "TRAIN_BATCH_SIZE": 8,  # training batch size
-        "VALID_BATCH_SIZE": 8,  # validation batch size
-        "TRAIN_EPOCHS": 3,  # number of training epochs
-        "VAL_EPOCHS": 1,  # number of validation epochs
-        "LEARNING_RATE": 1e-4,  # learning rate
-        "MAX_SOURCE_TEXT_LENGTH": 512,  # max length of source text
-        "MAX_TARGET_TEXT_LENGTH": 50,  # max length of target text
-        "SEED": 42,  # set seed for reproducibility
+    training_set = AdapterTranslatorDataset(
+        eng_dataset['devtest'],
+        por_dataset['devtest'],
+        tokenizer,
+        args.max_len
+    )
+    val_set = AdapterTranslatorDataset(
+        eng_dataset['dev'],
+        por_dataset['dev'],
+        tokenizer,
+        args.max_len
+    )
+
+    # Defining the parameters for creation of dataloaders
+    train_params = {
+        "batch_size": args.batch_size,
+        "shuffle": True,
+        "num_workers": 0,
     }
 
-    T5Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        model_params=model_params,
-        output_dir="outputs",
+    val_params = {
+        "batch_size": args.batch_size,
+        "shuffle": False,
+        "num_workers": 0,
+    }
+
+    # Creation of Dataloaders for testing and validation. This will be used down for training and validation stage for the model.
+    training_loader = DataLoader(training_set, **train_params)
+    val_loader = DataLoader(val_set, **val_params)
+
+    # Defining the optimizer that will be used to tune the weights of the network in the training session.
+    optimizer = torch.optim.Adam(
+        params=model.parameters(), lr=args.lr
     )
+
+    best_loss = 1e6
+
+    for epoch in tqdm(range(args.max_eps)):
+        train(epoch, tokenizer, model, args.device, training_loader, optimizer, criterion)
+        val_loss = validate(epoch, tokenizer, model, args.device, val_loader, optimizer, criterion)
+        print("Epoch {} complete. , Validation Loss : {}".format(epoch, val_loss))
+        # wandb.log(
+        #     {"train": {"loss": loss.item()},"val": {"loss": val_loss.item(), "wer": val_wer.item()}})
+        if val_loss < best_loss:
+            print("Best validation loss improved from {} to {}. Saving model...".format(best_loss, val_loss))
+            best_loss = val_loss
+            torch.save(model, args.save_model_as)
+
+    predictions, actuals, ave_bleu = test(epoch, tokenizer, model, args.device, val_loader)
+    final_df = pd.DataFrame({"Generated Text": predictions, "Actual Text": actuals})
+    final_df.to_csv(f"../data/final_predictions_{args.lang}.csv")
+    print(f"Validation BLEU score: {ave_bleu}")

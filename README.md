@@ -1,4 +1,4 @@
 # adapter-translation
 
-- Need to add folders models (with llama-2 weights) and data (with lang datasets downloaded by HF hub)
+- Note to self: need to re-download 13B and non-chat models as something is wrong  
 - To add on when I know what I'm doing
