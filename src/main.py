@@ -12,7 +12,7 @@ import os
 
 from peft import get_peft_model, LoraConfig, TaskType
 
-from datasets import load_dataset 
+from datasets import load_dataset, load_from_disk
 
 from tqdm import tqdm
 import argparse
@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
     model = LlamaForCausalLM.from_pretrained(os.environ['LLAMA_MODEL_13B_PATH'],
                                                 use_safetensors=False,
-                                                device_map='auto',
+                                                # device_map='auto',
                                                 torch_dtype=torch.float16,
                                                 use_auth_token=True,
                                                 #  load_in_8bit=True,
@@ -165,11 +165,8 @@ if __name__ == "__main__":
 
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
 
-    por_dataset = load_dataset('facebook/flores', 'por_Latn')
-    eng_dataset = load_dataset('facebook/flores', 'eng_Latn')
-
-    por_dataset.save_to_disk("../data/por.hf")
-    eng_dataset.save_to_disk("../data/eng.hf")
+    por_dataset = load_from_disk("../data/por.hf")
+    eng_dataset = load_from_disk("../data/eng.hf")
 
     training_set = AdapterTranslatorDataset(
         eng_dataset['devtest'],
