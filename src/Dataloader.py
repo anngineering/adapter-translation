@@ -75,6 +75,4 @@ class AdapterTranslatorDataset(Dataset):
             "target_ids_y": target_ids.to(dtype=torch.long),
         }
 
-        print(return_dict)
         return return_dict
-        # return source, target
