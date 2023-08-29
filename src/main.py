@@ -23,26 +23,18 @@ from Dataloader import AdapterTranslatorDataset
 
 def train(epoch, tokenizer, model, device, loader, optimizer, criterion):
 
-    """
-    Function to be called for training with the parameters passed from main function
-
-    """
-
     model.train()
     for _, data in enumerate(loader, 0):
-        y = data["target_ids"].to(device, dtype=torch.long)
-        y_ids = y[:, :-1].contiguous()
-        lm_labels = y[:, 1:].clone().detach()
-        lm_labels[y[:, 1:] == tokenizer.pad_token_id] = -100
+        y = data["target_ids"].to(args.device, dtype=torch.long)
+        labels = y.clone()
+        labels[labels == tokenizer.pad_token_id] = -100 
         ids = data["source_ids"].to(device, dtype=torch.long)
         mask = data["source_mask"].to(device, dtype=torch.long)
-
-        # print(ids, mask, lm_labels)
 
         outputs = model(
             input_ids=ids,
             attention_mask=mask,
-            labels=lm_labels,
+            labels=labels,
         )
 
         loss = criterion(outputs.logits, y)
@@ -57,31 +49,26 @@ def train(epoch, tokenizer, model, device, loader, optimizer, criterion):
 
 def validate(tokenizer, model, device, loader, criterion):
 
-    """
-    Function to evaluate model for predictions
-
-    """
     model.eval()
     losses = []
     with torch.no_grad():
         for _, data in enumerate(loader, 0):
-            y = data["target_ids"].to(device, dtype=torch.long)
-        y_ids = y[:, :-1].contiguous()
-        lm_labels = y[:, 1:].clone().detach()
-        lm_labels[y[:, 1:] == tokenizer.pad_token_id] = -100
-        ids = data["source_ids"].to(device, dtype=torch.long)
-        mask = data["source_mask"].to(device, dtype=torch.long)
+            y = data["target_ids"].to(args.device, dtype=torch.long)
+            labels = y.clone()
+            labels[labels == tokenizer.pad_token_id] = -100 
+            ids = data["source_ids"].to(device, dtype=torch.long)
+            mask = data["source_mask"].to(device, dtype=torch.long)
 
-        # print(ids, mask, lm_labels)
+            # print(ids, mask, lm_labels)
 
-        outputs = model(
-            input_ids=ids,
-            attention_mask=mask,
-            labels=lm_labels,
-        )
+            outputs = model(
+                input_ids=ids,
+                attention_mask=mask,
+                labels=labels,
+            )
 
-        loss = criterion(outputs.logits, y)
-        losses.append(loss)
+            loss = criterion(outputs.logits, y)
+            losses.append(loss)
 
     return np.mean(losses)
 
