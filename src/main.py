@@ -8,7 +8,6 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchtext.data.metrics import bleu_score
-import os
 
 from peft import get_peft_model, LoraConfig, TaskType
 
@@ -109,12 +108,10 @@ if __name__ == "__main__":
     parser.add_argument('-lr', type = float, default = 1e-3)
     parser.add_argument('-max_len', type = int, default = 128)
     parser.add_argument('-max_eps', type = int, default= 5)
-    parser.add_argument('-dataset', type=str, default='../data/nus_dataset_triples.csv')
-    parser.add_argument('-results', type=str, default='../data/triples_results_cameo.csv')
     parser.add_argument('-lang', type=str, help="pt, gl, ba", default='pt')
-    parser.add_argument('-t5_path', type=str, default=None)
     args = parser.parse_args()
     parser.add_argument('-save_model_as', type=str, default=f'../models/adapter_translation_{args.lang}.pt')
+    parser.add_argument('-results', type=str, default=f"../data/final_predictions_{args.lang}.csv")
     args = parser.parse_args()
 
     torch.manual_seed(42)  # pytorch random seed
@@ -195,7 +192,7 @@ if __name__ == "__main__":
             best_loss = val_loss
             torch.save(model, args.save_model_as)
 
-    predictions, actuals, ave_bleu = test(epoch, tokenizer, model, args.device, val_loader)
+    predictions, actuals, ave_bleu = test(tokenizer, model, args.device, val_loader)
     final_df = pd.DataFrame({"Generated Text": predictions, "Actual Text": actuals})
     final_df.to_csv(f"../data/final_predictions_{args.lang}.csv")
     print(f"Validation BLEU score: {ave_bleu}")
