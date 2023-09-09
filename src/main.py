@@ -108,7 +108,7 @@ if __name__ == "__main__":
     parser.add_argument('-lr', type = float, default = 1e-3)
     parser.add_argument('-max_len', type = int, default = 128)
     parser.add_argument('-max_eps', type = int, default= 5)
-    parser.add_argument('-lang', type=str, help="pt, gl, ba", default='pt')
+    parser.add_argument('-lang', type=str, help="Portuguese, Galician, Basque", default='Portuguese')
     args = parser.parse_args()
     parser.add_argument('-save_model_as', type=str, default=f'../models/adapter_translation_{args.lang}.pt')
     parser.add_argument('-results', type=str, default=f"../data/final_predictions_{args.lang}.csv")
@@ -148,13 +148,15 @@ if __name__ == "__main__":
         eng_dataset['devtest'],
         por_dataset['devtest'],
         tokenizer,
-        args.max_len
+        args.max_len,
+        args.lang
     )
     val_set = AdapterTranslatorDataset(
         eng_dataset['dev'],
         por_dataset['dev'],
         tokenizer,
-        args.max_len
+        args.max_len,
+        args.lang
     )
 
     # Defining the parameters for creation of dataloaders

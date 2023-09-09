@@ -10,7 +10,7 @@ class AdapterTranslatorDataset(Dataset):
     """
 
     def __init__(
-        self, eng_dataset, other_dataset, tokenizer, max_len,
+        self, eng_dataset, other_dataset, tokenizer, max_len, langauge
     ):
         """
         Initializes a Dataset class
@@ -28,6 +28,7 @@ class AdapterTranslatorDataset(Dataset):
         self.other_dataset = other_dataset
         self.source_len = max_len
         self.target_len = max_len
+        self.language = langauge
         self.target_text = self.other_dataset['sentence']
         self.source_text = self.eng_dataset['sentence']
 
@@ -47,7 +48,7 @@ class AdapterTranslatorDataset(Dataset):
         target_text = " ".join(target_text.split())
 
         source = self.tokenizer.batch_encode_plus(
-            [source_text],
+            [f'Translate to {self.language}:\n' + source_text],
             max_length=self.source_len,
             pad_to_max_length=True,
             truncation=True,
