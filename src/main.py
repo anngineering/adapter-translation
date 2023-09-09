@@ -29,15 +29,13 @@ def train(epoch, tokenizer, model, device, loader, optimizer, criterion):
         labels = y.clone()
         labels[labels == tokenizer.pad_token_id] = -100 
         ids = data["source_ids"].to(device, dtype=torch.long)
-        mask = data["source_mask"].to(device, dtype=torch.long)
 
         outputs = model(
             input_ids=ids,
-            attention_mask=mask,
             labels=labels,
         )
 
-        loss = criterion(outputs.logits, y)
+        loss = criterion(outputs.logits.view(-1, outputs.logits.size(-1)), labels.view(-1))
 
         # if _ % 10 == 0:
         #     training_logger.add_row(str(epoch), str(_), str(loss))
@@ -57,17 +55,13 @@ def validate(tokenizer, model, device, loader, criterion):
             labels = y.clone()
             labels[labels == tokenizer.pad_token_id] = -100 
             ids = data["source_ids"].to(device, dtype=torch.long)
-            mask = data["source_mask"].to(device, dtype=torch.long)
-
-            # print(ids, mask, lm_labels)
 
             outputs = model(
                 input_ids=ids,
-                attention_mask=mask,
                 labels=labels,
             )
 
-            loss = criterion(outputs.logits, y)
+            loss = criterion(outputs.logits.view(-1, outputs.logits.size(-1)), labels.view(-1))
             losses.append(loss)
 
     return np.mean(losses)
@@ -86,12 +80,10 @@ def test(tokenizer, model, device, loader):
         for _, data in enumerate(loader, 0):
             y = data['target_ids'].to(device, dtype = torch.long)
             ids = data['source_ids'].to(device, dtype = torch.long)
-            mask = data['source_mask'].to(device, dtype = torch.long)
 
             generated_ids = model.generate(
-                input_ids = ids,
-                attention_mask = mask, 
-                max_length=150, 
+                input_ids = ids, 
+                max_length=128, 
                 num_beams=2,
                 repetition_penalty=2.5, 
                 length_penalty=1.0, 
