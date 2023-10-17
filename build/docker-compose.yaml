@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  adapter-translation:
+    build: 
+      context: ../
+      dockerfile: build/Dockerfile
+    stdin_open: true
+    tty: true 
+    environment:
+      NVIDIA_VISIBLE_DEVICES: 0
+      CUDA_VISIBLE_DEVICES: 0
+    ulimits:
+      memlock: -1
+    shm_size: 32gb
+    ports:
+      - ${NOTEBOOK_HOST_PORT}:${NOTEBOOK_CONTAINER_PORT}
+    deploy:
+          resources:
+            reservations:
+              devices:
+                - driver: nvidia
+                  count: 1
+                  capabilities: [gpu]
+    volumes:
+      - ../data:/data
+      - /home/dhuser/model_bank:/models
+      - ../src:/src
+    env_file:
+    - .env
