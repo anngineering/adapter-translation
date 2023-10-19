@@ -70,9 +70,9 @@ class AdapterTranslatorDataset(Dataset):
         target_mask = target["attention_mask"].squeeze()
 
         return_dict =  {
-            "source_ids": source_ids.to(dtype=torch.long),
-            "source_mask": source_mask.to(dtype=torch.long),
-            "target_ids": target_ids.to(dtype=torch.long),
+            "input_ids": source_ids.to(dtype=torch.long),
+            "attention_mask": source_mask.to(dtype=torch.long),
+            "labels": target_ids.to(dtype=torch.long),
             "target_ids_y": target_ids.to(dtype=torch.long),
         }
 

@@ -19,6 +19,7 @@ xformers
 einops
 peft
 bitsandbytes
+tensorboardX
 datasets==2.14.4
 clearml
 boto3

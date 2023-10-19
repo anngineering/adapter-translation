@@ -15,7 +15,7 @@ import argparse
 
 import os
 
-from Dataloader import AdapterTranslatorDataset
+from dataloader import AdapterTranslatorDataset
 
 from utils import utils
 
@@ -59,7 +59,7 @@ class Llama2ForTranslation:
         self.other_dataset = load_from_disk(self.cfg["dataset_path"])
         self.eng_dataset = load_from_disk("../data/eng.hf")
 
-        self.AutoTokenizer.from_pretrained(os.environ["TOKENIZER_13B_PATH"],
+        self.tokenizer = AutoTokenizer.from_pretrained(os.environ["TOKENIZER_7B_PATH"],
                                           use_auth_token=True,)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "right"
@@ -74,7 +74,7 @@ class Llama2ForTranslation:
         #                                         )
 
         self.model = LlamaForCausalLM.from_pretrained(
-            os.environ['LLAMA_MODEL_13B_PATH'],
+            os.environ['LLAMA_MODEL_7B_PATH'],
             quantization_config=bnb_config,
             device_map=self.device_map
         )
@@ -89,7 +89,7 @@ class Llama2ForTranslation:
             task_type="CAUSAL_LM",
         )
 
-        self.model.print_trainable_parameters()
+        # self.model.print_trainable_parameters()
 
         self.training_arguments = TrainingArguments(
             output_dir=self.cfg["output_dir"],
@@ -111,7 +111,7 @@ class Llama2ForTranslation:
             report_to="tensorboard"
         )
 
-        self.saved_model = '_'.join([os.environ['LLAMA_MODEL_13B_PATH'], self.cfg["lang"]])
+        self.saved_model = '_'.join([os.environ['LLAMA_MODEL_7B_PATH'], self.cfg["lang"]])
 
     def get_dataloader(self):
         training_set = AdapterTranslatorDataset(
@@ -123,41 +123,41 @@ class Llama2ForTranslation:
         )
         val_set = AdapterTranslatorDataset(
             self.eng_dataset['dev'],
-            self.por_dataset['dev'],
+            self.other_dataset['dev'],
             self.tokenizer,
             self.cfg['max_seq_length'],
             self.cfg["lang"]
         )
 
-        # Defining the parameters for creation of dataloaders
-        train_params = {
-            "batch_size": self.cfg['per_device_train_batch_size'],
-            "shuffle": True,
-            "num_workers": 5,
-        }
+        # # Defining the parameters for creation of dataloaders
+        # train_params = {
+        #     "batch_size": self.cfg['per_device_train_batch_size'],
+        #     "shuffle": True,
+        #     "num_workers": 5,
+        # }
 
-        val_params = {
-            "batch_size": self.cfg['per_device_eval_batch_size'],
-            "shuffle": False,
-            "num_workers": 5,
-        }
+        # val_params = {
+        #     "batch_size": self.cfg['per_device_eval_batch_size'],
+        #     "shuffle": False,
+        #     "num_workers": 5,
+        # }
 
-        # Creation of Dataloaders for testing and validation. This will be used down for training and validation stage for the model.
-        training_loader = DataLoader(training_set, **train_params)
-        val_loader = DataLoader(val_set, **val_params)
+        # # Creation of Dataloaders for testing and validation. This will be used down for training and validation stage for the model.
+        # training_loader = DataLoader(training_set, **train_params)
+        # val_loader = DataLoader(val_set, **val_params)
 
-        return training_loader, val_loader
+        return training_set, val_set
     
     def train_and_eval(self):
-        training_loader, val_loader = self.get_dataloader()
+        training_set, val_set = self.get_dataloader()
 
         trainer = SFTTrainer(
         model=self.model,
-        train_dataset=training_loader,
-        eval_dataset=val_loader,
+        train_dataset=training_set,
+        eval_dataset=val_set,
         peft_config=self.peft_config,
         dataset_text_field="text",
-        max_seq_length=self.max_seq_length,
+        max_seq_length=self.cfg['max_seq_length'],
         tokenizer=self.tokenizer,
         args=self.training_arguments,
         packing=self.cfg["packing"],
@@ -173,7 +173,7 @@ class Llama2ForTranslation:
 
     def reload_saved_model(self):
         base_model = self.model = LlamaForCausalLM.from_pretrained(
-        os.environ['LLAMA_MODEL_13B_PATH'],
+        os.environ['LLAMA_MODEL_7B_PATH'],
         # low_cpu_mem_usage=True,
         return_dict=True,
         torch_dtype=torch.float16,
@@ -184,7 +184,7 @@ class Llama2ForTranslation:
 
     def test(self, input_text):
         model = self.reload_saved_model()
-        tokenizer = AutoTokenizer.from_pretrained(os.environ['LLAMA_MODEL_13B_PATH'], trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(os.environ['LLAMA_MODEL_7B_PATH'], trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = "right"
 

@@ -18,7 +18,7 @@ import argparse
 
 import os
 
-from Dataloader import AdapterTranslatorDataset
+from dataloader import AdapterTranslatorDataset
 
 def train(epoch, tokenizer, model, device, loader, optimizer, criterion):
 
