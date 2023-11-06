@@ -1,6 +1,6 @@
 # adapter-translation
 
-- Note to self: need to re-download 13B and non-chat models as something is wrong  
+- Note to self: need to figure out why I still get CUDA OOM error as it should technically run on my local 16GB GPU  
 - To add on when I know what I'm doing  
 
 ## General setup instructions
