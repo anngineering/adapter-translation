@@ -1,4 +1,4 @@
-dataset_path: "../data/por.hf"
+dataset_path: "/data/por.hf"
 lang: "Portuguese"
 
 ################################################################################
@@ -38,17 +38,17 @@ use_nested_quant: False
 output_dir: "../data/results"
 
 # Number of training epochs
-max_eps: 10
+max_eps: 1
 
 # Enable fp16/bf16 training (set bf16 to True with an A100)
-fp16: False
+fp16: True
 bf16: False
 
 # Batch size per GPU for training
-per_device_train_batch_size: 8
+per_device_train_batch_size: 4
 
 # Batch size per GPU for evaluation
-per_device_eval_batch_size: 8
+per_device_eval_batch_size: 1
 
 # Number of update steps to accumulate the gradients for
 gradient_accumulation_steps: 1
@@ -66,7 +66,7 @@ learning_rate: 0.0002
 weight_decay : 0.001
 
 # Optimizer to use
-optim : "paged_adamw_32bit"
+optim : "paged_adamw_8bit"
 
 # Learning rate schedule
 lr_scheduler_type : "cosine"
@@ -92,7 +92,7 @@ logging_steps : 25
 ################################################################################
 
 # Maximum sequence length to use
-max_seq_length : 512
+max_seq_length : 128
 
 # Pack multiple short examples in the same input sequence to increase efficiency
 packing : False

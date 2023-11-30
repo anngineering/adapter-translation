@@ -1,7 +1,4 @@
-import torchtext
 import os
-import numpy as np
-import pandas as pd
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -11,7 +8,6 @@ from torchtext.data.metrics import bleu_score
 from datasets import load_dataset, load_from_disk
 
 from tqdm import tqdm
-import argparse
 
 import os
 
@@ -20,63 +16,51 @@ from dataloader import AdapterTranslatorDataset
 from utils import utils
 
 from transformers import (
-    AutoModelForCausalLM,
     LlamaForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
-    HfArgumentParser,
     TrainingArguments,
     pipeline,
     logging,
 )
-from peft import LoraConfig, PeftModel, TaskType
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from trl import SFTTrainer
 
-from datasets import load_dataset, load_from_disk
 
 logging.set_verbosity(logging.CRITICAL)
 
 class Llama2ForTranslation:
     def __init__(self):
         self.cfg = utils.load_config()
-        self.device_map = {"": 0}
+        # self.device_map = {"": 0}
         compute_dtype = getattr(torch, self.cfg['bnb_8bit_compute_dtype'])
 
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=self.cfg["use_8bit"],
             bnb_4bit_quant_type=self.cfg["bnb_8bit_quant_type"],
-            bnb_4bit_compute_dtype=compute_dtype,
-            bnb_4bit_use_double_quant=self.cfg["use_nested_quant"],
+            bnb_4bit_compute_dtype=compute_dtype
         )
 
-        if compute_dtype == torch.float16 and self.cfg['use_8bit']:
-            major, _ = torch.cuda.get_device_capability()
-            if major >= 8:
-                print("=" * 80)
-                print("Your GPU supports bfloat16: accelerate training with bf16=True")
-                print("=" * 80)
+        # if compute_dtype == torch.float16 and self.cfg['use_8bit']:
+        #     major, _ = torch.cuda.get_device_capability()
+        #     if major >= 8:
+        #         print("=" * 80)
+        #         print("Your GPU supports bfloat16: accelerate training with bf16=True")
+        #         print("=" * 80)
 
         self.other_dataset = load_from_disk(self.cfg["dataset_path"])
         self.eng_dataset = load_from_disk("../data/eng.hf")
 
         self.tokenizer = AutoTokenizer.from_pretrained(os.environ["TOKENIZER_7B_PATH"],
-                                          use_auth_token=True,)
+                                          use_auth_token=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "right"
 
-        # self.model = LlamaForCausalLM.from_pretrained(os.environ['LLAMA_MODEL_13B_PATH'],
-        #                                         use_safetensors=False,
-        #                                         # device_map='auto',
-        #                                         torch_dtype=torch.float16,
-        #                                         use_auth_token=True,
-        #                                         load_in_8bit=True,
-        #                                         # load_in_4bit=True
-        #                                         )
 
         self.model = LlamaForCausalLM.from_pretrained(
             os.environ['LLAMA_MODEL_7B_PATH'],
             quantization_config=bnb_config,
-            device_map=self.device_map
+            device_map='auto'
         )
         self.model.config.use_cache = False
         self.model.config.pretraining_tp = 1
@@ -88,6 +72,7 @@ class Llama2ForTranslation:
             bias="none",
             task_type="CAUSAL_LM",
         )
+        self.model = get_peft_model(self.model, self.peft_config)
 
         # self.model.print_trainable_parameters()
 
@@ -95,6 +80,7 @@ class Llama2ForTranslation:
             output_dir=self.cfg["output_dir"],
             num_train_epochs=self.cfg["max_eps"],
             per_device_train_batch_size=self.cfg['per_device_train_batch_size'],
+            per_device_eval_batch_size=self.cfg['per_device_eval_batch_size'],
             gradient_accumulation_steps=self.cfg['gradient_accumulation_steps'],
             optim=self.cfg["optim"],
             save_steps=self.cfg['save_steps'],
@@ -106,12 +92,13 @@ class Llama2ForTranslation:
             max_grad_norm=self.cfg['max_grad_norm'],
             max_steps=self.cfg['max_steps'],
             warmup_ratio=self.cfg['warmup_ratio'],
-            group_by_length=self.cfg['group_by_length'],
+            # group_by_length=self.cfg['group_by_length'],
             lr_scheduler_type=self.cfg['lr_scheduler_type'],
             report_to="tensorboard"
         )
 
         self.saved_model = '_'.join([os.environ['LLAMA_MODEL_7B_PATH'], self.cfg["lang"]])
+        # self.saved_model = f'/models/test_translate/{self.cfg["lang"]}'
 
     def get_dataloader(self):
         training_set = AdapterTranslatorDataset(
@@ -152,17 +139,17 @@ class Llama2ForTranslation:
         training_set, val_set = self.get_dataloader()
 
         trainer = SFTTrainer(
-        model=self.model,
-        train_dataset=training_set,
-        eval_dataset=val_set,
-        peft_config=self.peft_config,
-        dataset_text_field="text",
-        max_seq_length=self.cfg['max_seq_length'],
-        tokenizer=self.tokenizer,
-        args=self.training_arguments,
-        packing=self.cfg["packing"],
-        compute_metrics=lambda p: {"bleu_score": bleu_score(p.predictions, p.label_ids)},
-    )
+            model=self.model,
+            train_dataset=training_set,
+            eval_dataset=val_set,
+            peft_config=self.peft_config,
+            dataset_text_field="text",
+            max_seq_length=self.cfg['max_seq_length'],
+            tokenizer=self.tokenizer,
+            args=self.training_arguments,
+            packing=self.cfg["packing"],
+            compute_metrics=lambda p: {"bleu_score": bleu_score(p.predictions, p.label_ids)},
+        )
         trainer.train()
 
         trainer.model.save_pretrained(self.saved_model)
