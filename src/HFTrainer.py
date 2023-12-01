@@ -176,6 +176,9 @@ class Llama2ForTranslation:
         labels = [self.tokenizer.batch_decode(l, skip_special_tokens=True, clean_up_tokenization_spaces=True) for l in labels_ids]
         bleu = bleu_score(preds, labels)
 
+        print(preds[0])
+        print(labels[0])
+
         print(f"BLEU Score: {bleu}")
 
         return {'bleu': bleu}
@@ -187,6 +190,7 @@ class Llama2ForTranslation:
         # low_cpu_mem_usage=True,
         return_dict=True,
         torch_dtype=torch.float16,
+        load_in_4bit=True
         # device_map=self.device_map,
         )
         model = PeftModel.from_pretrained(base_model, self.saved_model)

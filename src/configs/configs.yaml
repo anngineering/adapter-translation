@@ -38,7 +38,7 @@ use_nested_quant: False
 output_dir: "../data/results"
 
 # Number of training epochs
-max_eps: 1
+max_eps: 25
 
 # Enable fp16/bf16 training (set bf16 to True with an A100)
 fp16: True
