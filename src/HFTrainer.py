@@ -205,7 +205,7 @@ class Llama2ForTranslation:
         prompt = input_text
         pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=128)
         result = pipe(f"<s>[INST] {prompt} [/INST]")
-        print(result[0]['generated_text'])
+        print(result[0]['generated_text'].split('[/INST]')[-1])
 
 
 if __name__ == "__main__":
