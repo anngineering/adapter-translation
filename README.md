@@ -1,7 +1,6 @@
 # adapter-translation
-
-- Note to self: need to figure out why I still get CUDA OOM error as it should technically run on my local 16GB GPU  
-- To add on when I know what I'm doing  
+- Experiment to investigate few-shot multilingual translation in large language models (LLMs) using
+PEFT Adapters
 
 ## General setup instructions
 - Add a /data and a /models directory  
